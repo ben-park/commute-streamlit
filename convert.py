@@ -183,7 +183,7 @@ def convert(file_path):
         for idx, cell in enumerate(row):
             if idx % 2 == 0 and cell.value:
                 try:
-                    if datetime.strptime(cell.value, '%H:%M:%S') > datetime.strptime('08:30:00', '%H:%M:%S'):
+                    if datetime.strptime(cell.value, '%H:%M:%S') > datetime.strptime('08:30:59', '%H:%M:%S'):
                         cell.fill = late_fill
                         cell.font = late_font
                 except ValueError:
