@@ -5,7 +5,6 @@ from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
 from operator import itemgetter
-import xml.etree.ElementTree as ET
 import json
 
 def add_12_hours(time_str):
