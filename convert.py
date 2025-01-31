@@ -14,45 +14,6 @@ def get_all_dates(dict):
     max_date = datetime.strptime(sorted_dates[-1], '%Y-%m-%d')
     # 최소일과 최대일 사이 모든 날짜 생성
     return [(min_date + timedelta(days=i)).strftime('%Y-%m-%d') for i in range((max_date - min_date).days + 1)]
-
-def xml_to_json(file_path):
-    try:
-        # XML 파일 파싱
-        tree = ET.parse(file_path)
-        root = tree.getroot()
-
-        # XML 데이터를 딕셔너리로 변환
-        def parse_element(element):
-            parsed_data = {}
-            
-            # 하위 요소가 없으면 텍스트 값을 반환
-            if len(element) == 0:
-                return element.text.strip() if element.text else None
-
-            # 하위 요소가 있으면 재귀적으로 처리
-            for child in element:
-                child_data = parse_element(child)
-                if child.tag in parsed_data:
-                    # 같은 태그 이름이 여러 개 있을 경우 리스트로 저장
-                    if not isinstance(parsed_data[child.tag], list):
-                        parsed_data[child.tag] = [parsed_data[child.tag]]
-                    parsed_data[child.tag].append(child_data)
-                else:
-                    parsed_data[child.tag] = child_data
-
-            return parsed_data
-
-        # 루트 요소부터 파싱 시작
-        json_data = {root.tag: parse_element(root)}
-
-        return json_data
-
-    except ET.ParseError as e:
-        print(f"XML 파싱 오류: {e}")
-        return None
-    except Exception as e:
-        print(f"오류 발생: {e}")
-        return None
     
 def xlsx_to_json(file_path):
     excel_df = pd.read_excel(file_path, skiprows=2)
