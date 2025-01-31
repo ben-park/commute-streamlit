@@ -8,6 +8,14 @@ from operator import itemgetter
 import xml.etree.ElementTree as ET
 import json
 
+def add_12_hours(time_str):
+    # 문자열을 datetime 객체로 변환
+    time_obj = datetime.strptime(time_str, "%H:%M:%S")
+    # 12시간 추가
+    new_time_obj = time_obj + timedelta(hours=12)
+    # 새로운 시간 문자열 반환
+    return new_time_obj.strftime("%H:%M:%S")
+
 def get_all_dates(dict):
     sorted_dates = sorted(dict.keys(), key=lambda x: datetime.strptime(x, '%Y-%m-%d'))
     min_date = datetime.strptime(sorted_dates[0], '%Y-%m-%d')
@@ -30,7 +38,10 @@ def convert(file_path):
     # 날짜별 직원 출근 및 퇴근 정보 분리
     for entry in work_data:
         datetime_str, mode, name = itemgetter('date_Attestation', 'str_Mode', 'str_workempName')(entry)
-        date, time = datetime_str.split(' ')[0], datetime_str.split(' ')[2]
+        date, ampm, time = datetime_str.split(' ') #[0], datetime_str.split(' ')[2]
+        
+        if ampm == '오후':
+            time = add_12_hours(time)
 
         # 날짜별 직원 출근/퇴근 정보 저장
         if date not in attendance_dict:
