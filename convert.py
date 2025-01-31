@@ -53,25 +53,19 @@ def xml_to_json(file_path):
     except Exception as e:
         print(f"오류 발생: {e}")
         return None
-
-# 사용 예시
-if __name__ == "__main__":
-    xml_file_path = "example.xml"  # XML 파일 경로
-    json_data = xml_to_json(xml_file_path)
-
-    if json_data:
-        # JSON 데이터 출력
-        print(json.dumps(json_data, indent=4, ensure_ascii=False))
-
+    
+def xlsx_to_json(file_path):
+    excel_df = pd.read_excel(file_path, skiprows=2)
+    rename_df = excel_df.rename(columns={"인증일시": "date_Attestation", "요일": "str_Week", "인증번호": "str_tmId", "사원번호": "str_workempNum", "이름": "str_workempName", "리더기 장소": "str_accTerminalPlace", "인증모드": "str_Mode", "인증상태": "str_ValidationStatus", "인증방법": "str_Certificate", "부서": "str_workempPostName", "직위": "str_workempPositionName", "타임테이블": "str_workUserTimetableName", "직원상태": "str_emptmAdmin"})
+    json_data = rename_df.to_json(orient='records', force_ascii=False)
+    return json_data
 
 def convert(file_path):
     # 데이터 변환
-    data = xml_to_json(file_path)
-    work_data = data["NewDataSet"]["tb_workresult"]
-
+    json_data = xlsx_to_json(file_path)
+    work_data = json.loads(json_data)
     # 직원 이름과 출근/퇴근 시간을 추출
     attendance_dict = {}
-
     # 날짜별 직원 출근 및 퇴근 정보 분리
     for entry in work_data:
         datetime_str, mode, name = itemgetter('date_Attestation', 'str_Mode', 'str_workempName')(entry)
@@ -190,3 +184,13 @@ def convert(file_path):
                     pass
 
     return workbook
+
+# 사용 예시
+if __name__ == "__main__":
+    xml_file_path = "input.xlsx"  # XML 파일 경로
+    workbook = convert(xml_file_path)
+
+    if workbook:
+        # JSON 데이터 출력
+        print(workbook)
+        # print(json.dumps(json_data, indent=4, ensure_ascii=False))
