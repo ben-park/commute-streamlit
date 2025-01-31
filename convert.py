@@ -73,7 +73,7 @@ def convert(file_path):
                       'Thursday': '목', 'Friday': '금'}[weekday]
 
         # 행 생성
-        row = [datetime.strptime(date, '%Y-%m-%d').strftime('%d/%m/%Y'), weekday_kr, '']
+        row = [datetime.strptime(date, '%Y-%m-%d').strftime('%Y/%m/%d'), weekday_kr, '']
 
         # 직원별 출근/퇴근 시간 추가
         if date in attendance_dict:
