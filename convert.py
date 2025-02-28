@@ -37,10 +37,15 @@ def convert(file_path):
     # 날짜별 직원 출근 및 퇴근 정보 분리
     for entry in work_data:
         datetime_str, mode, name = itemgetter('date_Attestation', 'str_Mode', 'str_workempName')(entry)
-        date, ampm, time = datetime_str.split(' ') #[0], datetime_str.split(' ')[2]
-        
-        if ampm == '오후':
-            time = add_12_hours(time)
+        try:
+            date, ampm, time = datetime_str.split(' ')
+            if ampm == '오후':
+                time = add_12_hours(time)
+        except ValueError:
+            #오류가 발생시 date, time을 나누는 다른방법을 사용.
+            date, time = datetime_str.split(' ')
+            ampm = "오전"
+            pass
 
         # 날짜별 직원 출근/퇴근 정보 저장
         if date not in attendance_dict:
