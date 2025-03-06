@@ -186,14 +186,14 @@ def apply_styles(sheet, rows):
                 if is_estimated:
                     cell.fill = STYLES['estimated_fill']
 
-def convert(file_path):
+def convert(file_path, employee_order=None):
     """메인 변환 함수"""
     work_data = load_data(file_path)
     if not work_data:
         return None
 
     attendance_dict = process_attendance(work_data)
-    employee_names = sorted(set(entry['str_workempName'] for entry in work_data))
+    employee_names = employee_order if employee_order else sorted(set(entry['str_workempName'] for entry in work_data))
     rows = generate_rows(attendance_dict, employee_names)
     workbook = setup_workbook(employee_names)
 
@@ -209,6 +209,14 @@ def convert(file_path):
 # 사용 예시
 if __name__ == "__main__":
     file_path = sys.argv[1] if len(sys.argv) > 1 else "input.xlsx"  # Excel 파일 경로
-    workbook = convert(file_path)
+    # 하드코딩된 employee_order 사용
+    employee_order = [
+        "강희경(Sophie)", "김민경(Ari)", "김민규(Arthur)", "김성준(Alex)", "김영석(Ethan)",
+        "김정한(Hans)", "박주헌(Stark)", "성영아(Amy)", "양은영(Ella)", "오준석(Alex)",
+        "유주영(Roxie)", "정기철(Roy)", "정대웅(Henry)", "최정원(Jen)", "박병건(Ben)",
+        "서이현(Zoe)", "정재윤(Rio)"
+    ]
+    workbook = convert(file_path, employee_order)
     if workbook:
         logger.info("Conversion completed successfully")
+    
