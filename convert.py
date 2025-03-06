@@ -55,7 +55,14 @@ def convert(file_path):
             attendance_dict[date][name] = {'출근': '', '퇴근': ''}
 
         # 출근 또는 퇴근 기록 추가
-        attendance_dict[date][name][mode] = time
+        if mode in ['출근', '퇴근']:
+            current_time = attendance_dict[date][name][mode]
+        if mode == '출근':
+            if not current_time or time < current_time:
+                attendance_dict[date][name][mode] = time
+        elif mode == '퇴근':
+            if not current_time or time > current_time:
+                attendance_dict[date][name][mode] = time
 
     # 날짜와 직원 정보를 기반으로 데이터프레임 생성
     rows = []
