@@ -26,6 +26,7 @@ def xlsx_to_json(file_path):
     excel_df = pd.read_excel(file_path, skiprows=2)
     rename_df = excel_df.rename(columns={"인증일시": "date_Attestation", "요일": "str_Week", "인증번호": "str_tmId", "사원번호": "str_workempNum", "이름": "str_workempName", "리더기 장소": "str_accTerminalPlace", "인증모드": "str_Mode", "인증상태": "str_ValidationStatus", "인증방법": "str_Certificate", "부서": "str_workempPostName", "직위": "str_workempPositionName", "타임테이블": "str_workUserTimetableName", "직원상태": "str_emptmAdmin"})
     json_data = rename_df.to_json(orient='records', force_ascii=False)
+    print(json_data)
     return json_data
 
 def convert(file_path):
@@ -52,17 +53,18 @@ def convert(file_path):
             attendance_dict[date] = {}
 
         if name not in attendance_dict[date]:
-            attendance_dict[date][name] = {'출근': '', '퇴근': ''}
+            attendance_dict[date][name] = {'출근': '', '퇴근': '', 'times': [], '출근_추정': False, '퇴근_추정': False}  # times와 추정 플래그 추가
 
-        # 출근 또는 퇴근 기록 추가
-        if mode in ['출근', '퇴근']:
+        # 모든 시간 기록 저장 및 출근/퇴근 기록 추가
+        attendance_dict[date][name]['times'].append(time)  # 모든 시간을 리스트에 추가
+        if mode in ['출근', '퇴근']:  # '출근' 또는 '퇴근'일 때만 처리
             current_time = attendance_dict[date][name][mode]
-        if mode == '출근':
-            if not current_time or time < current_time:
-                attendance_dict[date][name][mode] = time
-        elif mode == '퇴근':
-            if not current_time or time > current_time:
-                attendance_dict[date][name][mode] = time
+            if mode == '출근':
+                if not current_time or time < current_time:  # 더 빠른 출근 시간 선택
+                    attendance_dict[date][name][mode] = time
+            elif mode == '퇴근':
+                if not current_time or time > current_time:  # 더 늦은 퇴근 시간 선택
+                    attendance_dict[date][name][mode] = time
 
     # 날짜와 직원 정보를 기반으로 데이터프레임 생성
     rows = []
@@ -72,6 +74,18 @@ def convert(file_path):
 
     # 모든 날짜 추출
     all_dates = list(attendance_dict.keys())
+
+    # 누락된 출근/퇴근을 추정값으로 채우기
+    for date in attendance_dict:
+        for name in attendance_dict[date]:
+            times = sorted(attendance_dict[date][name]['times'])  # 모든 시간 정렬
+            if times:  # 시간이 존재할 때만 처리
+                if not attendance_dict[date][name]['출근']:
+                    attendance_dict[date][name]['출근'] = times[0]  # 가장 빠른 시간
+                    attendance_dict[date][name]['출근_추정'] = True
+                if not attendance_dict[date][name]['퇴근']:
+                    attendance_dict[date][name]['퇴근'] = times[-1]  # 가장 늦은 시간
+                    attendance_dict[date][name]['퇴근_추정'] = True
 
     # 각 날짜에 대해 직원들의 출근/퇴근 시간을 행으로 추가
     for date in all_dates:
@@ -87,15 +101,17 @@ def convert(file_path):
         # 행 생성
         row = [datetime.strptime(date, '%Y-%m-%d').strftime('%Y/%m/%d'), weekday_kr, '']
 
-        # 직원별 출근/퇴근 시간 추가
+        # 직원별 출근/퇴근 시간 추가 (시간과 추정 여부 함께 저장)
         if date in attendance_dict:
             for employee in employee_names:
                 if employee in attendance_dict[date]:
-                    row.append(attendance_dict[date][employee]['출근'])
-                    row.append(attendance_dict[date][employee]['퇴근'])
+                    row.append((attendance_dict[date][employee]['출근'], 
+                               attendance_dict[date][employee]['출근_추정']))
+                    row.append((attendance_dict[date][employee]['퇴근'], 
+                               attendance_dict[date][employee]['퇴근_추정']))
                 else:
-                    row.append('')
-                    row.append('')
+                    row.append(('', False))
+                    row.append(('', False))
 
         rows.append(row)
 
@@ -124,10 +140,14 @@ def convert(file_path):
         sheet[get_column_letter(idx * 2) + '2'] = '출근'
         sheet[get_column_letter(idx * 2 + 1) + '2'] = '퇴근'
 
-    # 출퇴근 시간 데이터프레임 셀 삽입
+    # 출퇴근 시간 데이터프레임 셀 삽입 (시간만 기록)
     for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=False), start=3):
         for c_idx, value in enumerate(row, 1):
-            sheet.cell(row=r_idx, column=c_idx, value=value)
+            cell = sheet.cell(row=r_idx, column=c_idx)
+            if isinstance(value, tuple):  # 튜플이면 시간만 기록
+                cell.value = value[0]
+            else:
+                cell.value = value
 
     # 전체 스타일 적용
     # 폰트크기 및 가운데정렬
@@ -155,16 +175,24 @@ def convert(file_path):
     # 지각 처리 (08:30 이후 출근 시 강조 표시)
     late_fill = PatternFill(start_color='FFCCCC', end_color='FFCCCC', fill_type='solid')
     late_font = Font(color='FF0000')
+    estimated_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')  # 노란색
 
     for row in sheet.iter_rows(min_row=3, max_row=sheet.max_row, min_col=4, max_col=sheet.max_column):
         for idx, cell in enumerate(row):
-            if idx % 2 == 0 and cell.value:
-                try:
-                    if datetime.strptime(cell.value, '%H:%M:%S') > datetime.strptime('08:30:59', '%H:%M:%S'):
-                        cell.fill = late_fill
-                        cell.font = late_font
-                except ValueError:
-                    pass
+            if cell.value:  # 값이 있는 경우에만 처리
+                # 지각 체크 (출근 열: 짝수 인덱스)
+                if idx % 2 == 0:
+                    try:
+                        if datetime.strptime(cell.value, '%H:%M:%S') > datetime.strptime('08:30:59', '%H:%M:%S'):
+                            cell.fill = late_fill
+                            cell.font = late_font
+                    except ValueError:
+                        pass
+                # 추정값 체크 (출근/퇴근 모두)
+                row_idx = cell.row - 3  # 데이터프레임 인덱스 조정
+                col_idx = cell.column - 1  # 열 인덱스 조정
+                if isinstance(df.iloc[row_idx, col_idx], tuple) and df.iloc[row_idx, col_idx][1]:  # 추정값이면 노란색 배경
+                    cell.fill = estimated_fill
 
     return workbook
 
