@@ -25,7 +25,13 @@ pip install pandas openpyxl streamlit
 
 ## 실행 방법
 
-1.  **프로그램 실행**: [웹 페이지](https://mainpy-4eumirewbaz83fisvvcrkc.streamlit.app/) 접속
+1.  **프로그램 실행**:
+
+```bash
+streamlit run main.py
+```
+
+위 명령으로 실행 후 http://localhost:8501 접속
 
 2.  **엑셀 파일 업로드**: 웹 브라우저에 표시된 인터페이스에서 "xlsx 파일을 업로드하세요" 버튼을 클릭하고, 변환할 엑셀 파일을 선택합니다.
 3.  **파일 처리 및 다운로드**: 파일이 업로드되고 변환이 완료되면, "엑셀 파일 다운로드" 버튼이 활성화됩니다. 이 버튼을 클릭하여 변환된 엑셀 파일을 다운로드합니다.
