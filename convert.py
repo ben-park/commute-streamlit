@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.utils.dataframe import dataframe_to_rows
 from operator import itemgetter
 import json
+import sys
 
 def add_12_hours(time_str):
     # 문자열을 datetime 객체로 변환
@@ -39,53 +39,52 @@ def convert(file_path):
     for entry in work_data:
         datetime_str, mode, name = itemgetter('date_Attestation', 'str_Mode', 'str_workempName')(entry)
         try:
-            date, ampm, time = datetime_str.split(' ')
-            if ampm == '오후':
-                time = add_12_hours(time)
-        except ValueError:
-            #오류가 발생시 date, time을 나누는 다른방법을 사용.
-            date, time = datetime_str.split(' ')
-            ampm = "오전"
-            pass
+            parts = datetime_str.split(' ')
+            if len(parts) == 3:
+                date, ampm, time = parts
+                if ampm == '오후':
+                    time = add_12_hours(time)
+            elif len(parts) == 2:
+                date, time = parts
+            else:
+                print(f"Skipping invalid datetime format: {datetime_str}")
+                continue
+        except ValueError as e:
+            print(f"Error parsing datetime: {e}, skipping entry: {datetime_str}")
+            continue
 
         # 날짜별 직원 출근/퇴근 정보 저장
         if date not in attendance_dict:
             attendance_dict[date] = {}
 
         if name not in attendance_dict[date]:
-            attendance_dict[date][name] = {'출근': '', '퇴근': '', 'times': [], '출근_추정': False, '퇴근_추정': False}  # times와 추정 플래그 추가
+            attendance_dict[date][name] = {'출근': '', '퇴근': '', 'times': [], '출근_추정': False, '퇴근_추정': False}
 
         # 모든 시간 기록 저장 및 출근/퇴근 기록 추가
-        attendance_dict[date][name]['times'].append(time)  # 모든 시간을 리스트에 추가
-        if mode in ['출근', '퇴근']:  # '출근' 또는 '퇴근'일 때만 처리
+        attendance_dict[date][name]['times'].append(time)
+        if mode in ['출근', '퇴근']:
             current_time = attendance_dict[date][name][mode]
-            if mode == '출근':
-                if not current_time or time < current_time:  # 더 빠른 출근 시간 선택
-                    attendance_dict[date][name][mode] = time
-            elif mode == '퇴근':
-                if not current_time or time > current_time:  # 더 늦은 퇴근 시간 선택
-                    attendance_dict[date][name][mode] = time
-
-    # 날짜와 직원 정보를 기반으로 데이터프레임 생성
-    rows = []
-
-    # 직원들의 이름 목록을 추출 (중복 없는 이름)
-    employee_names = sorted(set([entry['str_workempName'] for entry in work_data]))
-
-    # 모든 날짜 추출
-    all_dates = list(attendance_dict.keys())
+            if mode == '출근' and (not current_time or datetime.strptime(time, '%H:%M:%S') < datetime.strptime(current_time, '%H:%M:%S')):
+                attendance_dict[date][name][mode] = time
+            elif mode == '퇴근' and (not current_time or datetime.strptime(time, '%H:%M:%S') > datetime.strptime(current_time, '%H:%M:%S')):
+                attendance_dict[date][name][mode] = time
 
     # 누락된 출근/퇴근을 추정값으로 채우기
     for date in attendance_dict:
         for name in attendance_dict[date]:
-            times = sorted(attendance_dict[date][name]['times'])  # 모든 시간 정렬
-            if times:  # 시간이 존재할 때만 처리
+            if attendance_dict[date][name]['times']:
+                times = sorted(attendance_dict[date][name]['times'])
                 if not attendance_dict[date][name]['출근']:
-                    attendance_dict[date][name]['출근'] = times[0]  # 가장 빠른 시간
+                    attendance_dict[date][name]['출근'] = times[0]
                     attendance_dict[date][name]['출근_추정'] = True
                 if not attendance_dict[date][name]['퇴근']:
-                    attendance_dict[date][name]['퇴근'] = times[-1]  # 가장 늦은 시간
+                    attendance_dict[date][name]['퇴근'] = times[-1]
                     attendance_dict[date][name]['퇴근_추정'] = True
+
+    # 날짜와 직원 정보를 기반으로 데이터 생성
+    rows = []
+    employee_names = sorted(set([entry['str_workempName'] for entry in work_data]))
+    all_dates = get_all_dates(attendance_dict)  # 모든 날짜 포함
 
     # 각 날짜에 대해 직원들의 출근/퇴근 시간을 행으로 추가
     for date in all_dates:
@@ -100,22 +99,20 @@ def convert(file_path):
 
         # 행 생성
         row = [datetime.strptime(date, '%Y-%m-%d').strftime('%Y/%m/%d'), weekday_kr, '']
-
-        # 직원별 출근/퇴근 시간 추가 (시간과 추정 여부 함께 저장)
         if date in attendance_dict:
             for employee in employee_names:
                 if employee in attendance_dict[date]:
-                    row.append((attendance_dict[date][employee]['출근'], 
-                               attendance_dict[date][employee]['출근_추정']))
-                    row.append((attendance_dict[date][employee]['퇴근'], 
-                               attendance_dict[date][employee]['퇴근_추정']))
+                    row.append((attendance_dict[date][employee]['출근'], attendance_dict[date][employee]['출근_추정']))
+                    row.append((attendance_dict[date][employee]['퇴근'], attendance_dict[date][employee]['퇴근_추정']))
                 else:
                     row.append(('', False))
                     row.append(('', False))
+        else:
+            for _ in employee_names:
+                row.append(('', False))
+                row.append(('', False))
 
         rows.append(row)
-
-    df = pd.DataFrame(rows)
 
     # 엑셀 포맷 설정
     workbook = Workbook()
@@ -140,14 +137,11 @@ def convert(file_path):
         sheet[get_column_letter(idx * 2) + '2'] = '출근'
         sheet[get_column_letter(idx * 2 + 1) + '2'] = '퇴근'
 
-    # 출퇴근 시간 데이터프레임 셀 삽입 (시간만 기록)
-    for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=False), start=3):
+    # 데이터 직접 삽입
+    for r_idx, row in enumerate(rows, start=3):
         for c_idx, value in enumerate(row, 1):
             cell = sheet.cell(row=r_idx, column=c_idx)
-            if isinstance(value, tuple):  # 튜플이면 시간만 기록
-                cell.value = value[0]
-            else:
-                cell.value = value
+            cell.value = value[0] if isinstance(value, tuple) else value
 
     # 전체 스타일 적용
     # 폰트크기 및 가운데정렬
@@ -172,36 +166,33 @@ def convert(file_path):
             for cell in row:
                 cell.border = Border(top=Side(border_style='double'))
 
-    # 지각 처리 (08:30 이후 출근 시 강조 표시)
+    # 지각 및 추정값 스타일 적용
     late_fill = PatternFill(start_color='FFCCCC', end_color='FFCCCC', fill_type='solid')
     late_font = Font(color='FF0000')
-    estimated_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')  # 노란색
+    estimated_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')
 
     for row in sheet.iter_rows(min_row=3, max_row=sheet.max_row, min_col=4, max_col=sheet.max_column):
         for idx, cell in enumerate(row):
-            if cell.value:  # 값이 있는 경우에만 처리
-                # 지각 체크 (출근 열: 짝수 인덱스)
-                if idx % 2 == 0:
+            if cell.value:
+                row_idx = cell.row - 3
+                col_idx = cell.column - 1
+                is_estimated = isinstance(rows[row_idx][col_idx], tuple) and rows[row_idx][col_idx][1]
+                if idx % 2 == 0:  # 출근 열
                     try:
-                        if datetime.strptime(cell.value, '%H:%M:%S') > datetime.strptime('08:30:59', '%H:%M:%S'):
+                        time_val = datetime.strptime(cell.value, '%H:%M:%S')
+                        if time_val > datetime.strptime('08:30:59', '%H:%M:%S'):
                             cell.fill = late_fill
                             cell.font = late_font
                     except ValueError:
                         pass
-                # 추정값 체크 (출근/퇴근 모두)
-                row_idx = cell.row - 3  # 데이터프레임 인덱스 조정
-                col_idx = cell.column - 1  # 열 인덱스 조정
-                if isinstance(df.iloc[row_idx, col_idx], tuple) and df.iloc[row_idx, col_idx][1]:  # 추정값이면 노란색 배경
+                if is_estimated:
                     cell.fill = estimated_fill
 
     return workbook
 
 # 사용 예시
 if __name__ == "__main__":
-    xml_file_path = "input.xlsx"  # XML 파일 경로
-    workbook = convert(xml_file_path)
-
+    file_path = sys.argv[1] if len(sys.argv) > 1 else "input.xlsx"  # Excel 파일 경로
+    workbook = convert(file_path)
     if workbook:
-        # JSON 데이터 출력
-        print(workbook)
-        # print(json.dumps(json_data, indent=4, ensure_ascii=False))
+        print("Conversion completed successfully")
