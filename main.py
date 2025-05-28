@@ -3,10 +3,11 @@ from io import BytesIO
 from convert import convert
 
 employee_order = [
-        "강희경(Sophie)", "김민경(Ari)", "김민규(Arthur)", "김성준(Alex)", "김영석(Ethan)",
+        "강희경(Sophie)", "김민경(Ari)", "김민규(Arthur)", "김성준(Alex)",
         "김정한(Hans)", "박주헌(Stark)", "성영아(Amy)", "양은영(Ella)", "오준석(Alex)",
-        "유주영(Roxie)", "정기철(Roy)", "정대웅(Henry)", "최정원(Jen)", "박병건(Ben)",
-        "서이현(Zoe)", "정재윤(Rio)"
+        "유주영(Roxie)", "정기철(Roy)", "정대웅(Henry)", "최정원(Jen)", "김지연(Joanna)", 
+        "정석영(Lucas)", "제갈성규(Kai)",
+        "박병건(Ben)", "서이현(Zoe)", "정재윤(Rio)"
     ]
 
 st.title("출,퇴근 기록 파일 Converter")
